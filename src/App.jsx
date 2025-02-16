@@ -3,28 +3,33 @@ import VisualSnowSimulator from "../src/components/VisualSnowSimulator.jsx";
 
 function App() {
     const [user, setUser] = useState(null);
+    const [currentScreen, setCurrentScreen] = useState(0);
+
+    const screens = [
+        { image: "/sky.png", effect: "blur" },  // First image uses blur
+        { image: "/room.png", effect: "noise" }, // Second image uses noise
+        { image: "/bar.png", effect: "ghost" }, // Third image uses ghost effect
+        { image: "/lamps.png", effect: "halo" }, // Third image uses ghost effect
+    ];
+
 
     useEffect(() => {
         if (window.Telegram?.WebApp) {
             const tg = window.Telegram.WebApp;
             tg.expand(); // Expands the app inside Telegram
 
-            // Get Telegram user data
             if (tg.initDataUnsafe?.user) {
                 setUser(tg.initDataUnsafe.user);
             }
         }
     }, []);
 
-    const sendMessageToBot = () => {
-        if (window.Telegram?.WebApp) {
-            window.Telegram.WebApp.sendData("User interacted with Visual Snow Simulator!");
-        }
+    const onNextScreenButton = () => {
+        setCurrentScreen((prevScreen) => (prevScreen + 1) % screens.length);
     };
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100">
-            {/* User Info Display */}
             {user ? (
                 <p className="mb-4 text-lg font-semibold">
                     Welcome, {user.first_name}! 👋
@@ -33,15 +38,17 @@ function App() {
                 <p className="mb-4 text-lg font-semibold">Loading user info...</p>
             )}
 
-            {/* Visual Snow Simulator Component */}
-            <VisualSnowSimulator />
+            {/* Pass correct image and effectType from screens array */}
+            <VisualSnowSimulator
+                image={screens[currentScreen].image}
+                effectType={screens[currentScreen].effect}
+            />
 
-            {/* Send Data Button */}
             <button
-                onClick={sendMessageToBot}
+                onClick={onNextScreenButton}
                 className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg shadow-md hover:bg-blue-600"
             >
-                Send Data to Telegram Bot
+                Next screen
             </button>
         </div>
     );
