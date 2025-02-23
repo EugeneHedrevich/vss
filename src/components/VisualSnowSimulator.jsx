@@ -78,16 +78,17 @@ const VisualSnowSimulator = ({ image, effectType }) => {
 
     const applyHalo = (ctx, img, haloIntensity, haloOpacity, haloDiameter) => {
         const positions = [
-            { x: 241, y: 128.5 },
-            { x: 158, y: 214.5 },
-            { x: 122, y: 250.5 }
+            { x: 147, y: 75.5 },
+            { x: 97, y: 132.5 },
+            { x: 76, y: 154.5 }
         ];
-
         ctx.globalCompositeOperation = "lighter"; // Makes bright areas glow
 
         positions.forEach(({ x, y }) => {
+            const adjustedOpacity = haloOpacity * haloIntensity; // Adjust the opacity based on intensity
             const gradient = ctx.createRadialGradient(x, y, 0, x, y, haloDiameter);
-            gradient.addColorStop(0, `rgba(255, 255, 255, ${haloOpacity})`); // Center of the halo
+
+            gradient.addColorStop(0, `rgba(255, 255, 255, ${adjustedOpacity})`); // Center of the halo
             gradient.addColorStop(1, `rgba(255, 255, 255, 0)`); // Fading outwards
 
             ctx.fillStyle = gradient;
@@ -98,6 +99,26 @@ const VisualSnowSimulator = ({ image, effectType }) => {
 
         ctx.globalCompositeOperation = "source-over";
     };
+
+
+    document.addEventListener("click", (event) => {
+        const canvas = event.target.closest("canvas");
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+
+        console.log(`Halo position: { x: ${x}, y: ${y} }`);
+
+        const ctx = canvas.getContext("2d");
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = "rgba(255, 255, 200, 0.7)";
+        ctx.beginPath();
+        ctx.arc(x, y, 20, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+    });
+
 
     return (
         <div className="p-4 flex flex-col items-center">
