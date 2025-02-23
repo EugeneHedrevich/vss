@@ -7,6 +7,8 @@ const VisualSnowSimulator = ({ image, effectType }) => {
     const [ghostX, setGhostX] = useState(10);
     const [ghostY, setGhostY] = useState(10);
     const [haloIntensity, setHaloIntensity] = useState(0.3);
+    const [haloOpacity, setHaloOpacity] = useState(0.5); // Added state for haloOpacity
+    const [haloDiameter, setHaloDiameter] = useState(30); // Added state for haloDiameter
 
     const canvasRef = useRef(null);
     const imageRef = useRef(new Image());
@@ -28,7 +30,7 @@ const VisualSnowSimulator = ({ image, effectType }) => {
         return () => {
             img.onload = null;
         };
-    }, [image, blurLevel, noiseLevel, opacityLevel, ghostX, ghostY, haloIntensity]);
+    }, [image, blurLevel, noiseLevel, opacityLevel, ghostX, ghostY, haloIntensity, haloOpacity, haloDiameter]);
 
     const animateEffect = (ctx, img) => {
         const canvas = ctx.canvas;
@@ -43,7 +45,7 @@ const VisualSnowSimulator = ({ image, effectType }) => {
 
             if (effectType === "noise") applyNoise(ctx);
             if (effectType === "ghost") applyGhost(ctx, img);
-            if (effectType === "halo") applyHalo(ctx, img);
+            if (effectType === "halo") applyHalo(ctx, img, haloIntensity, haloOpacity, haloDiameter);
 
             requestAnimationFrame(drawFrame);
         };
@@ -74,23 +76,26 @@ const VisualSnowSimulator = ({ image, effectType }) => {
         ctx.globalAlpha = 1;
     };
 
-    const applyHalo = (ctx, img) => {
+    const applyHalo = (ctx, img, haloIntensity, haloOpacity, haloDiameter) => {
+        const positions = [
+            { x: 241, y: 128.5 },
+            { x: 158, y: 214.5 },
+            { x: 122, y: 250.5 }
+        ];
+
         ctx.globalCompositeOperation = "lighter"; // Makes bright areas glow
-        let width = ctx.canvas.width;
-        let height = ctx.canvas.height;
-        let imageData = ctx.getImageData(0, 0, width, height);
-        let data = imageData.data;
 
-        for (let i = 0; i < data.length; i += 4) {
-            let brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
-            if (brightness > 100) { // Apply halos to bright areas
-                data[i] += haloIntensity * 255;
-                data[i + 1] += haloIntensity * 255;
-                data[i + 2] += haloIntensity * 255;
-            }
-        }
+        positions.forEach(({ x, y }) => {
+            const gradient = ctx.createRadialGradient(x, y, 0, x, y, haloDiameter);
+            gradient.addColorStop(0, `rgba(255, 255, 255, ${haloOpacity})`); // Center of the halo
+            gradient.addColorStop(1, `rgba(255, 255, 255, 0)`); // Fading outwards
 
-        ctx.putImageData(imageData, 0, 0);
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(x, y, haloDiameter, 0, 2 * Math.PI);
+            ctx.fill();
+        });
+
         ctx.globalCompositeOperation = "source-over";
     };
 
@@ -177,6 +182,26 @@ const VisualSnowSimulator = ({ image, effectType }) => {
                             step="0.05"
                             value={haloIntensity}
                             onChange={(e) => setHaloIntensity(parseFloat(e.target.value))}
+                            className="w-full"
+                        />
+                        <label className="mt-4 mb-2">Halo Opacity: {haloOpacity}</label>
+                        <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.05"
+                            value={haloOpacity}
+                            onChange={(e) => setHaloOpacity(parseFloat(e.target.value))}
+                            className="w-full"
+                        />
+                        <label className="mt-4 mb-2">Halo Diameter: {haloDiameter}</label>
+                        <input
+                            type="range"
+                            min="10"
+                            max="100"
+                            step="5"
+                            value={haloDiameter}
+                            onChange={(e) => setHaloDiameter(parseInt(e.target.value))}
                             className="w-full"
                         />
                     </>
