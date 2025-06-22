@@ -10,6 +10,7 @@ function App() {
         { image: "/room.png", effect: "noise" }, // Second image uses noise
         { image: "/bar.png", effect: "ghost" }, // Third image uses ghost effect
         { image: "/lamps.png", effect: "halo" }, // Third image uses ghost effect
+        { image: "/sky.png", effect: "blueField" } // Third image uses ghost effect
     ];
 
 

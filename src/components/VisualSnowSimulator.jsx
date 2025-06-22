@@ -1,4 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
+import { applyBlur } from "../effects/blurEffect";
+import { applyNoise } from "../effects/noiseEffect";
+import { applyGhost } from "../effects/ghostEffect";
+import { applyHalo } from "../effects/haloEffect";
+import { applyBlueField } from "../effects/blueFieldEffect";
 
 const VisualSnowSimulator = ({ image, effectType }) => {
     const [blurLevel, setBlurLevel] = useState(1);
@@ -7,8 +12,14 @@ const VisualSnowSimulator = ({ image, effectType }) => {
     const [ghostX, setGhostX] = useState(10);
     const [ghostY, setGhostY] = useState(10);
     const [haloIntensity, setHaloIntensity] = useState(0.3);
-    const [haloOpacity, setHaloOpacity] = useState(0.5); // Added state for haloOpacity
-    const [haloDiameter, setHaloDiameter] = useState(30); // Added state for haloDiameter
+    const [haloOpacity, setHaloOpacity] = useState(0.5);
+    const [haloDiameter, setHaloDiameter] = useState(30);
+
+    const [numSquigglies, setNumSquigglies] = useState(30);
+    const [updateSpeed, setUpdateSpeed] = useState(60);
+    const [trailLength, setTrailLength] = useState(10);
+    const [maxAngle, setMaxAngle] = useState(40);
+    const [opacity, setOpacity] = useState(70);
 
     const canvasRef = useRef(null);
     const imageRef = useRef(new Image());
@@ -30,95 +41,31 @@ const VisualSnowSimulator = ({ image, effectType }) => {
         return () => {
             img.onload = null;
         };
-    }, [image, blurLevel, noiseLevel, opacityLevel, ghostX, ghostY, haloIntensity, haloOpacity, haloDiameter]);
+    }, [image, blurLevel, noiseLevel, opacityLevel, ghostX, ghostY, haloIntensity, haloOpacity, haloDiameter, numSquigglies, updateSpeed, trailLength, maxAngle, opacity]);
 
     const animateEffect = (ctx, img) => {
         const canvas = ctx.canvas;
 
         const drawFrame = () => {
+            // Clear the canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.globalAlpha = 1; // Reset alpha
 
-            if (effectType === "blur") applyBlur(ctx);
+            // Draw the image on the canvas
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            ctx.filter = "none";
 
-            if (effectType === "noise") applyNoise(ctx);
-            if (effectType === "ghost") applyGhost(ctx, img);
+            // Apply effects in the correct order
+            if (effectType === "blur") applyBlur(ctx, blurLevel);
+            if (effectType === "noise") applyNoise(ctx, noiseLevel);
+            if (effectType === "ghost") applyGhost(ctx, img, opacityLevel, ghostX, ghostY);
             if (effectType === "halo") applyHalo(ctx, img, haloIntensity, haloOpacity, haloDiameter);
+            if (effectType === "blueField") applyBlueField(ctx, numSquigglies, updateSpeed, trailLength, maxAngle, opacity);
 
+            // Request the next frame
             requestAnimationFrame(drawFrame);
         };
 
         drawFrame();
     };
-
-    const applyBlur = (ctx) => {
-        ctx.filter = `blur(${blurLevel}px)`;
-    };
-
-    const applyNoise = (ctx) => {
-        const canvas = ctx.canvas;
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const pixels = imageData.data;
-        for (let i = 0; i < pixels.length; i += 4) {
-            const randomNoise = (Math.random() - 0.5) * noiseLevel * 255;
-            pixels[i] += randomNoise;
-            pixels[i + 1] += randomNoise;
-            pixels[i + 2] += randomNoise;
-        }
-        ctx.putImageData(imageData, 0, 0);
-    };
-
-    const applyGhost = (ctx, img) => {
-        ctx.globalAlpha = opacityLevel;
-        ctx.drawImage(img, ghostX, ghostY, ctx.canvas.width * 0.95, ctx.canvas.height * 0.95);
-        ctx.globalAlpha = 1;
-    };
-
-    const applyHalo = (ctx, img, haloIntensity, haloOpacity, haloDiameter) => {
-        const positions = [
-            { x: 147, y: 75.5 },
-            { x: 97, y: 132.5 },
-            { x: 76, y: 154.5 }
-        ];
-        ctx.globalCompositeOperation = "lighter"; // Makes bright areas glow
-
-        positions.forEach(({ x, y }) => {
-            const adjustedOpacity = haloOpacity * haloIntensity; // Adjust the opacity based on intensity
-            const gradient = ctx.createRadialGradient(x, y, 0, x, y, haloDiameter);
-
-            gradient.addColorStop(0, `rgba(255, 255, 255, ${adjustedOpacity})`); // Center of the halo
-            gradient.addColorStop(1, `rgba(255, 255, 255, 0)`); // Fading outwards
-
-            ctx.fillStyle = gradient;
-            ctx.beginPath();
-            ctx.arc(x, y, haloDiameter, 0, 2 * Math.PI);
-            ctx.fill();
-        });
-
-        ctx.globalCompositeOperation = "source-over";
-    };
-
-
-    document.addEventListener("click", (event) => {
-        const canvas = event.target.closest("canvas");
-        if (!canvas) return;
-        const rect = canvas.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
-
-        console.log(`Halo position: { x: ${x}, y: ${y} }`);
-
-        const ctx = canvas.getContext("2d");
-        ctx.globalAlpha = 0.5;
-        ctx.fillStyle = "rgba(255, 255, 200, 0.7)";
-        ctx.beginPath();
-        ctx.arc(x, y, 20, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha = 1;
-    });
-
 
     return (
         <div className="p-4 flex flex-col items-center">
@@ -205,6 +152,7 @@ const VisualSnowSimulator = ({ image, effectType }) => {
                             onChange={(e) => setHaloIntensity(parseFloat(e.target.value))}
                             className="w-full"
                         />
+
                         <label className="mt-4 mb-2">Halo Opacity: {haloOpacity}</label>
                         <input
                             type="range"
@@ -215,6 +163,7 @@ const VisualSnowSimulator = ({ image, effectType }) => {
                             onChange={(e) => setHaloOpacity(parseFloat(e.target.value))}
                             className="w-full"
                         />
+
                         <label className="mt-4 mb-2">Halo Diameter: {haloDiameter}</label>
                         <input
                             type="range"
@@ -225,6 +174,25 @@ const VisualSnowSimulator = ({ image, effectType }) => {
                             onChange={(e) => setHaloDiameter(parseInt(e.target.value))}
                             className="w-full"
                         />
+                    </>
+                )}
+
+                {effectType === "blueField" && (
+                    <>
+                        <label>Number of Squigglies: {numSquigglies}</label>
+                        <input type="range" min="5" max="100" value={numSquigglies} onChange={(e) => setNumSquigglies(parseInt(e.target.value))} className="w-full" />
+
+                        <label>Update Speed: {updateSpeed}</label>
+                        <input type="range" min="10" max="100" value={updateSpeed} onChange={(e) => setUpdateSpeed(parseInt(e.target.value))} className="w-full" />
+
+                        <label>Trail Length: {trailLength}</label>
+                        <input type="range" min="5" max="30" value={trailLength} onChange={(e) => setTrailLength(parseInt(e.target.value))} className="w-full" />
+
+                        <label>Max Angle to Turn: {maxAngle}</label>
+                        <input type="range" min="10" max="90" value={maxAngle} onChange={(e) => setMaxAngle(parseInt(e.target.value))} className="w-full" />
+
+                        <label>Opacity: {opacity}</label>
+                        <input type="range" min="10" max="100" value={opacity} onChange={(e) => setOpacity(parseInt(e.target.value))} className="w-full" />
                     </>
                 )}
             </div>
