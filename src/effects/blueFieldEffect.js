@@ -1,58 +1,60 @@
-export const applyBlueField = (ctx, numSquigglies, updateSpeed, trailLength, maxAngle, opacity) => {
+let squiggles = null;
+
+export const applyBlueField = (ctx, numSquigglies, speed, trailLength) => {
     const canvas = ctx.canvas;
-    let squiggles = Array.from({ length: numSquigglies }, () => createSquiggle(canvas));
 
-    let lastTime = 0;
-    const frameDelay = 1000 / updateSpeed; // Control frame rate based on updateSpeed
+    if (!squiggles || squiggles.length !== numSquigglies) {
+        squiggles = Array.from({ length: numSquigglies }, () => createSquiggle(canvas));
+    }
 
-    const drawFrame = (timestamp) => {
-        // Control frame rate to reduce lag
-        if (timestamp - lastTime >= frameDelay) {
-            lastTime = timestamp;
+    const maxAngle = 10;
+    const opacity = 0.7;
 
-            // Draw the squiggles on top of the existing canvas content
-            drawSquiggles(ctx, squiggles, opacity);
-            updateSquiggles(squiggles, canvas, maxAngle, trailLength);
-        }
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Request the next frame
-        requestAnimationFrame(drawFrame);
-    };
+    drawSquiggles(ctx, squiggles, opacity);
+    updateSquiggles(squiggles, canvas, maxAngle, trailLength);
+};
 
-    drawFrame();
+export const resetBlueField = () => {
+    squiggles = null;
 };
 
 const createSquiggle = (canvas) => ({
     x: Math.random() * canvas.width,
     y: Math.random() * canvas.height,
     angle: Math.random() * 360,
-    trail: []
+    trail: [],
 });
 
 const updateSquiggles = (squiggles, canvas, maxAngle, trailLength) => {
     squiggles.forEach((squiggle) => {
-        // Update the angle and position of the squiggle
         squiggle.angle += (Math.random() - 0.5) * maxAngle;
         squiggle.x += Math.cos((squiggle.angle * Math.PI) / 180) * 2;
         squiggle.y += Math.sin((squiggle.angle * Math.PI) / 180) * 2;
 
-        // Add the current position to the trail
         squiggle.trail.push({ x: squiggle.x, y: squiggle.y });
 
-        // Remove the oldest point if the trail exceeds the specified length
         if (squiggle.trail.length > trailLength) {
             squiggle.trail.shift();
         }
 
-        // Reset the squiggle if it goes out of bounds
-        if (squiggle.x < 0 || squiggle.x > canvas.width || squiggle.y < 0 || squiggle.y > canvas.height) {
+        if (
+            squiggle.x < 0 ||
+            squiggle.x > canvas.width ||
+            squiggle.y < 0 ||
+            squiggle.y > canvas.height
+        ) {
             Object.assign(squiggle, createSquiggle(canvas));
         }
     });
 };
 
 const drawSquiggles = (ctx, squiggles, opacity) => {
-    ctx.strokeStyle = `rgba(255, 255, 255, ${opacity / 100})`;
+    ctx.strokeStyle = `rgba(0, 136, 255, ${opacity})`;
+    ctx.lineWidth = 1.5;
+
     squiggles.forEach((squiggle) => {
         ctx.beginPath();
         squiggle.trail.forEach((point, index) => {

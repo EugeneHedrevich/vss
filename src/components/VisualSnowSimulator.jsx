@@ -18,8 +18,6 @@ const VisualSnowSimulator = ({ image, effectType }) => {
     const [numSquigglies, setNumSquigglies] = useState(30);
     const [updateSpeed, setUpdateSpeed] = useState(60);
     const [trailLength, setTrailLength] = useState(10);
-    const [maxAngle, setMaxAngle] = useState(40);
-    const [opacity, setOpacity] = useState(70);
 
     const canvasRef = useRef(null);
     const imageRef = useRef(new Image());
@@ -41,7 +39,7 @@ const VisualSnowSimulator = ({ image, effectType }) => {
         return () => {
             img.onload = null;
         };
-    }, [image, blurLevel, noiseLevel, opacityLevel, ghostX, ghostY, haloIntensity, haloOpacity, haloDiameter, numSquigglies, updateSpeed, trailLength, maxAngle, opacity]);
+    }, [image, blurLevel, noiseLevel, opacityLevel, ghostX, ghostY, haloIntensity, haloOpacity, haloDiameter, numSquigglies, updateSpeed, trailLength]);
 
     const animateEffect = (ctx, img) => {
         const canvas = ctx.canvas;
@@ -58,7 +56,7 @@ const VisualSnowSimulator = ({ image, effectType }) => {
             if (effectType === "noise") applyNoise(ctx, noiseLevel);
             if (effectType === "ghost") applyGhost(ctx, img, opacityLevel, ghostX, ghostY);
             if (effectType === "halo") applyHalo(ctx, img, haloIntensity, haloOpacity, haloDiameter);
-            if (effectType === "blueField") applyBlueField(ctx, numSquigglies, updateSpeed, trailLength, maxAngle, opacity);
+            if (effectType === "blueField") applyBlueField(ctx, numSquigglies, updateSpeed, trailLength);
 
             // Request the next frame
             requestAnimationFrame(drawFrame);
@@ -180,19 +178,34 @@ const VisualSnowSimulator = ({ image, effectType }) => {
                 {effectType === "blueField" && (
                     <>
                         <label>Number of Squigglies: {numSquigglies}</label>
-                        <input type="range" min="5" max="100" value={numSquigglies} onChange={(e) => setNumSquigglies(parseInt(e.target.value))} className="w-full" />
+                        <input
+                            type="range"
+                            min="5"
+                            max="100"
+                            value={numSquigglies}
+                            onChange={(e) => setNumSquigglies(parseInt(e.target.value))}
+                            className="w-full"
+                        />
 
                         <label>Update Speed: {updateSpeed}</label>
-                        <input type="range" min="10" max="100" value={updateSpeed} onChange={(e) => setUpdateSpeed(parseInt(e.target.value))} className="w-full" />
+                        <input
+                            type="range"
+                            min="10"
+                            max="100"
+                            value={updateSpeed}
+                            onChange={(e) => setUpdateSpeed(parseInt(e.target.value))}
+                            className="w-full"
+                        />
 
                         <label>Trail Length: {trailLength}</label>
-                        <input type="range" min="5" max="30" value={trailLength} onChange={(e) => setTrailLength(parseInt(e.target.value))} className="w-full" />
-
-                        <label>Max Angle to Turn: {maxAngle}</label>
-                        <input type="range" min="10" max="90" value={maxAngle} onChange={(e) => setMaxAngle(parseInt(e.target.value))} className="w-full" />
-
-                        <label>Opacity: {opacity}</label>
-                        <input type="range" min="10" max="100" value={opacity} onChange={(e) => setOpacity(parseInt(e.target.value))} className="w-full" />
+                        <input
+                            type="range"
+                            min="5"
+                            max="30"
+                            value={trailLength}
+                            onChange={(e) => setTrailLength(parseInt(e.target.value))}
+                            className="w-full"
+                        />
                     </>
                 )}
             </div>
