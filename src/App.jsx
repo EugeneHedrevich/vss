@@ -10,8 +10,11 @@ function App() {
     telegram: "",
   });
 
+  // Accumulate effect values here
+  const [effectsData, setEffectsData] = useState({});
+
   const sheetsUrl =
-    "https://script.google.com/macros/s/AKfycbyXP0Rt6QgMH_Qi0YbBruvA0NSUgf8_mN_MC_BCcaHTa8N3tU1xgFuSsZcuctnhw3a7/exec";
+    "https://script.google.com/macros/s/AKfycby2Q_ip92EafnDS3zhiiprMU_o1RBGVbtI109Acc28lTpVEeCFK1jP9vxexqGChYAs/exec";
 
   const screens = [
     { image: "/room_dark.png", effect: "blur" },
@@ -22,11 +25,10 @@ function App() {
     { image: "/sky.png", effect: "floaters" },
   ];
 
-  // Apply Telegram theme -> CSS variables; toggle Tailwind dark class
+  // Telegram theme hookup
   useEffect(() => {
     const tg = window.Telegram?.WebApp;
     if (!tg) return;
-
     const applyTheme = () => {
       const p = tg.themeParams || {};
       const set = (k, v) =>
@@ -38,17 +40,11 @@ function App() {
       set("--tg-theme-button-color", p.button_color);
       set("--tg-theme-button-text-color", p.button_text_color);
       set("--tg-theme-secondary-bg-color", p.secondary_bg_color);
-
-      document.documentElement.classList.toggle(
-        "dark",
-        tg.colorScheme === "dark"
-      );
+      document.documentElement.classList.toggle("dark", tg.colorScheme === "dark");
     };
-
     applyTheme();
     tg.onEvent("themeChanged", applyTheme);
     tg.expand();
-
     return () => tg.offEvent?.("themeChanged", applyTheme);
   }, []);
 
@@ -67,24 +63,47 @@ function App() {
     });
   };
 
+  // Collect values from simulator
+  const handleEffectSnapshot = ({ effectType, values }) => {
+    setEffectsData((prev) => ({
+      ...prev,
+      [effectType]: {
+        ...(prev[effectType] || {}),
+        ...values,
+        image: screens.find((s) => s.effect === effectType)?.image,
+      },
+    }));
+  };
+
   const handleFinishTesting = async () => {
+    const payload = {
+      first_name: user.first_name,
+      last_name: user.last_name,
+      telegram: user.telegram,
+      finishedAt: new Date().toISOString(),
+      screens: screens.map((s, idx) => ({
+        index: idx,
+        image: s.image,
+        effect: s.effect,
+        values: effectsData[s.effect] || null,
+      })),
+      effectsByType: effectsData,
+    };
+
     try {
       const res = await fetch(sheetsUrl, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({
-          first_name: user.first_name,
-          last_name: user.last_name,
-          telegram: user.telegram,
-          finishedAt: new Date().toISOString(),
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      alert("Результаты отправлены. Спасибо!");
     } catch (err) {
-      alert("Error submitting results: " + err.message);
+      alert("Ошибка отправки: " + err.message);
     } finally {
       setUser(null);
       setCurrentScreen(0);
+      setEffectsData({});
     }
   };
 
@@ -99,6 +118,7 @@ function App() {
           <VisualSnowSimulator
             image={screens[currentScreen].image}
             effectType={screens[currentScreen].effect}
+            onEffectSnapshot={handleEffectSnapshot}
           />
 
           {currentScreen < screens.length - 1 ? (

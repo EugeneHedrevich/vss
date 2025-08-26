@@ -6,44 +6,53 @@ import { applyHalo } from "../effects/haloEffect";
 import { applyFloaters, resetFloaters } from "../effects/floaterEffect";
 import { applyBlueField, resetBlueField } from "../effects/blueFieldEffect";
 
-const VisualSnowSimulator = ({ image, effectType }) => {
+const VisualSnowSimulator = ({ image, effectType, onEffectSnapshot }) => {
+  // effect state
   const [blurLevel, setBlurLevel] = useState(1);
   const [noiseLevel, setNoiseLevel] = useState(0.1);
   const [opacityLevel, setOpacityLevel] = useState(0.5);
   const [ghostX, setGhostX] = useState(10);
   const [ghostY, setGhostY] = useState(10);
+
   const [haloIntensity, setHaloIntensity] = useState(0.76);
   const [haloOpacity, setHaloOpacity] = useState(0.5);
   const [haloDiameter, setHaloDiameter] = useState(30);
+  const [haloPoints, setHaloPoints] = useState([]); // image-space points
 
-  // Blue-field controls
   const [numSquigglies, setNumSquigglies] = useState(60);
   const [blueOpacity, setBlueOpacity] = useState(0.7);
 
-  // Floaters controls
   const [floaterCount, setFloaterCount] = useState(5);
   const [floaterTail, setFloaterTail] = useState(40);
   const [floaterOpacity, setFloaterOpacity] = useState(0.5);
   const [floaterDarkness, setFloaterDarkness] = useState(0.5);
 
-  const baseCanvasRef = useRef(null);     // base image + non-halo effects
-  const haloCanvasRef = useRef(null);     // overlay (only for halo)
+  // canvases & image
+  const baseCanvasRef = useRef(null); // base effects
+  const haloCanvasRef = useRef(null); // overlay for halos only
   const imageRef = useRef(new Image());
   const rafRef = useRef(null);
-
   const lastBaseSizeRef = useRef({ w: 0, h: 0 });
 
-  // Reset pooled effects when switching screen/effect
+  // emitter
+  const emit = (patch) => {
+    if (!onEffectSnapshot) return;
+    onEffectSnapshot({ effectType, values: patch });
+  };
+
+  // reset per-screen
   useEffect(() => {
     resetBlueField();
     resetFloaters();
+    setHaloPoints([]);
+    emit({ positions: [] }); // ensure cleared in parent
   }, [image, effectType]);
 
   useEffect(() => {
     if (effectType === "floaters") resetFloaters();
   }, [floaterTail, effectType]);
 
-  // --- Base canvas sizing (simple, same as before) ---
+  // base canvas sizing (no DPR tricks)
   const fitBaseCanvas = (canvas) => {
     const rect = canvas.getBoundingClientRect();
     const targetW = Math.max(1, Math.round(rect.width));
@@ -56,7 +65,7 @@ const VisualSnowSimulator = ({ image, effectType }) => {
     return false;
   };
 
-  // --- Halo overlay DPR-aware sizing (isolated to halo only) ---
+  // halo overlay — DPR-aware
   const fitHaloCanvasDPR = (canvas) => {
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     const rect = canvas.getBoundingClientRect();
@@ -66,57 +75,31 @@ const VisualSnowSimulator = ({ image, effectType }) => {
       canvas.width = targetW;
       canvas.height = targetH;
     }
-    // draw in CSS pixels on the halo layer
     canvas.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0);
     return { rect, dpr };
   };
 
-  // Click on the halo overlay → log CSS + image-space
-  const handleHaloClick = (e) => {
-    const canvas = haloCanvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-
-    const cssX = e.clientX - rect.left;
-    const cssY = e.clientY - rect.top;
-
-    const natW = imageRef.current.naturalWidth || rect.width;
-    const natH = imageRef.current.naturalHeight || rect.height;
-
-    const imgX = cssX * (natW / rect.width);
-    const imgY = cssY * (natH / rect.height);
-
-    console.log("Halo position (image space):", { x: imgX, y: imgY });
-    console.log("Halo position (CSS space):", { x: cssX, y: cssY });
-
-    return { cssX, cssY, imgX, imgY };
-  };
-
+  // render loop
   useEffect(() => {
     const baseCanvas = baseCanvasRef.current;
     const baseCtx = baseCanvas.getContext("2d");
     const img = imageRef.current;
 
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
-
     img.src = image;
 
     img.onload = () => {
-      // CSS size for both canvases (same rectangle)
       const aspect = img.naturalHeight / img.naturalWidth;
       const cssW = Math.min(img.naturalWidth, Math.floor(window.innerWidth * 0.9));
       const cssH = Math.round(cssW * aspect);
-
-      // Set CSS size for base and (if present) halo canvases
       baseCanvas.style.width = `${cssW}px`;
       baseCanvas.style.height = `${cssH}px`;
-
       if (haloCanvasRef.current) {
         haloCanvasRef.current.style.width = `${cssW}px`;
         haloCanvasRef.current.style.height = `${cssH}px`;
       }
 
       const drawFrame = () => {
-        // --- Base canvas render (no DPR transform) ---
         const resized = fitBaseCanvas(baseCanvas);
         if (resized) {
           const { width: w, height: h } = baseCanvas;
@@ -127,7 +110,7 @@ const VisualSnowSimulator = ({ image, effectType }) => {
           }
         }
 
-        // draw base image/effects in base canvas' pixel coords
+        // base draw
         baseCtx.clearRect(0, 0, baseCanvas.width, baseCanvas.height);
         baseCtx.drawImage(img, 0, 0, baseCanvas.width, baseCanvas.height);
 
@@ -154,20 +137,31 @@ const VisualSnowSimulator = ({ image, effectType }) => {
           });
         }
 
-        // --- Halo overlay render (DPR-aware, CSS pixels) ---
+        // halo overlay
         if (effectType === "halo" && haloCanvasRef.current) {
           const haloCanvas = haloCanvasRef.current;
-          const { rect } = fitHaloCanvasDPR(haloCanvas); // sets CSS-px transform
+          const { rect } = fitHaloCanvasDPR(haloCanvas);
           const haloCtx = haloCanvas.getContext("2d");
-          // clear overlay in CSS px
           haloCtx.clearRect(0, 0, rect.width, rect.height);
-          // draw halos mapped from image→CSS on the overlay
-          applyHalo(haloCtx, img, haloIntensity, haloOpacity, haloDiameter);
+
+          const defaultPositions = [
+            { x: 297, y: 156.6875 },
+            { x: 195, y: 262.6875 },
+            { x: 153, y: 312.6875 },
+          ];
+
+          applyHalo(
+            haloCtx,
+            img,
+            haloIntensity,
+            haloOpacity,
+            haloDiameter,
+            haloPoints.length ? haloPoints : defaultPositions
+          );
         }
 
         rafRef.current = requestAnimationFrame(drawFrame);
       };
-
       drawFrame();
     };
 
@@ -183,28 +177,19 @@ const VisualSnowSimulator = ({ image, effectType }) => {
     // noise
     noiseLevel,
     // ghost
-    opacityLevel,
-    ghostX,
-    ghostY,
+    opacityLevel, ghostX, ghostY,
     // halo
-    haloIntensity,
-    haloOpacity,
-    haloDiameter,
-    // blue-field
-    numSquigglies,
-    blueOpacity,
+    haloIntensity, haloOpacity, haloDiameter, haloPoints,
+    // bluefield
+    numSquigglies, blueOpacity,
     // floaters
-    floaterCount,
-    floaterTail,
-    floaterOpacity,
-    floaterDarkness,
+    floaterCount, floaterTail, floaterOpacity, floaterDarkness,
   ]);
 
   return (
     <div className="p-4 flex flex-col items-center">
       <h1 className="text-xl font-bold mb-4">Симулятор визуального снега</h1>
 
-      {/* Canvas stack: base + (conditional) halo overlay */}
       <div className="relative inline-block">
         <canvas ref={baseCanvasRef} className="border rounded-lg tg-canvas" />
         {effectType === "halo" && (
@@ -212,22 +197,19 @@ const VisualSnowSimulator = ({ image, effectType }) => {
             ref={haloCanvasRef}
             className="absolute inset-0 rounded-lg"
             style={{ pointerEvents: "auto" }}
-            onClick={handleHaloClick}
+            title="Нажмите, чтобы добавить ореол"
           />
         )}
       </div>
 
+      {/* Controls — every change emits up */}
       <div className="mt-4 flex flex-col items-center w-64">
         {effectType === "blur" && (
           <>
             <label>Уровень размытия: {blurLevel}</label>
             <input
-              type="range"
-              min="0"
-              max="10"
-              step="0.1"
-              value={blurLevel}
-              onChange={(e) => setBlurLevel(parseFloat(e.target.value))}
+              type="range" min="0" max="10" step="0.1" value={blurLevel}
+              onChange={(e) => { const v = parseFloat(e.target.value); setBlurLevel(v); emit({ blurLevel: v }); }}
               className="w-full"
             />
           </>
@@ -237,12 +219,8 @@ const VisualSnowSimulator = ({ image, effectType }) => {
           <>
             <label>Уровень шума: {noiseLevel}</label>
             <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={noiseLevel}
-              onChange={(e) => setNoiseLevel(parseFloat(e.target.value))}
+              type="range" min="0" max="1" step="0.01" value={noiseLevel}
+              onChange={(e) => { const v = parseFloat(e.target.value); setNoiseLevel(v); emit({ noiseLevel: v }); }}
               className="w-full"
             />
           </>
@@ -252,30 +230,22 @@ const VisualSnowSimulator = ({ image, effectType }) => {
           <>
             <label>Прозрачность двоения: {opacityLevel}</label>
             <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={opacityLevel}
-              onChange={(e) => setOpacityLevel(parseFloat(e.target.value))}
+              type="range" min="0" max="1" step="0.01" value={opacityLevel}
+              onChange={(e) => { const v = parseFloat(e.target.value); setOpacityLevel(v); emit({ opacityLevel: v }); }}
               className="w-full"
             />
+
             <label>Смещение двоения по X: {ghostX}</label>
             <input
-              type="range"
-              min="-50"
-              max="50"
-              value={ghostX}
-              onChange={(e) => setGhostX(parseInt(e.target.value))}
+              type="range" min="-50" max="50" value={ghostX}
+              onChange={(e) => { const v = parseInt(e.target.value, 10); setGhostX(v); emit({ ghostX: v }); }}
               className="w-full"
             />
+
             <label>Смещение двоения по Y: {ghostY}</label>
             <input
-              type="range"
-              min="-50"
-              max="50"
-              value={ghostY}
-              onChange={(e) => setGhostY(parseInt(e.target.value))}
+              type="range" min="-50" max="50" value={ghostY}
+              onChange={(e) => { const v = parseInt(e.target.value, 10); setGhostY(v); emit({ ghostY: v }); }}
               className="w-full"
             />
           </>
@@ -285,32 +255,22 @@ const VisualSnowSimulator = ({ image, effectType }) => {
           <>
             <label>Интенсивность ореола: {haloIntensity.toFixed(2)}</label>
             <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={haloIntensity}
-              onChange={(e) => setHaloIntensity(parseFloat(e.target.value))}
+              type="range" min="0" max="1" step="0.01" value={haloIntensity}
+              onChange={(e) => { const v = parseFloat(e.target.value); setHaloIntensity(v); emit({ haloIntensity: v }); }}
               className="w-full"
             />
+
             <label>Прозрачность ореола: {haloOpacity}</label>
             <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={haloOpacity}
-              onChange={(e) => setHaloOpacity(parseFloat(e.target.value))}
+              type="range" min="0" max="1" step="0.01" value={haloOpacity}
+              onChange={(e) => { const v = parseFloat(e.target.value); setHaloOpacity(v); emit({ haloOpacity: v }); }}
               className="w-full"
             />
+
             <label>Диаметр ореола: {haloDiameter}</label>
             <input
-              type="range"
-              min="1"
-              max="100"
-              step="1"
-              value={haloDiameter}
-              onChange={(e) => setHaloDiameter(parseInt(e.target.value))}
+              type="range" min="1" max="100" step="1" value={haloDiameter}
+              onChange={(e) => { const v = parseInt(e.target.value, 10); setHaloDiameter(v); emit({ haloDiameter: v }); }}
               className="w-full"
             />
           </>
@@ -320,21 +280,14 @@ const VisualSnowSimulator = ({ image, effectType }) => {
           <>
             <label>Количество точек: {numSquigglies}</label>
             <input
-              type="range"
-              min="5"
-              max="120"
-              value={numSquigglies}
-              onChange={(e) => setNumSquigglies(parseInt(e.target.value))}
+              type="range" min="5" max="120" value={numSquigglies}
+              onChange={(e) => { const v = parseInt(e.target.value, 10); setNumSquigglies(v); emit({ numSquigglies: v }); }}
               className="w-full"
             />
             <label>Прозрачность: {blueOpacity.toFixed(2)}</label>
             <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={blueOpacity}
-              onChange={(e) => setBlueOpacity(parseFloat(e.target.value))}
+              type="range" min="0" max="1" step="0.01" value={blueOpacity}
+              onChange={(e) => { const v = parseFloat(e.target.value); setBlueOpacity(v); emit({ blueOpacity: v }); }}
               className="w-full"
             />
           </>
@@ -344,40 +297,26 @@ const VisualSnowSimulator = ({ image, effectType }) => {
           <>
             <label>Количество «мутных тел»: {floaterCount}</label>
             <input
-              type="range"
-              min="1"
-              max="15"
-              value={floaterCount}
-              onChange={(e) => setFloaterCount(parseInt(e.target.value))}
+              type="range" min="1" max="15" value={floaterCount}
+              onChange={(e) => { const v = parseInt(e.target.value, 10); setFloaterCount(v); emit({ floaterCount: v }); }}
               className="w-full"
             />
             <label>Длина хвоста: {floaterTail}</label>
             <input
-              type="range"
-              min="1"
-              max="100"
-              value={floaterTail}
-              onChange={(e) => setFloaterTail(parseInt(e.target.value))}
+              type="range" min="1" max="100" value={floaterTail}
+              onChange={(e) => { const v = parseInt(e.target.value, 10); setFloaterTail(v); emit({ floaterTail: v }); }}
               className="w-full"
             />
             <label>Прозрачность: {floaterOpacity.toFixed(2)}</label>
             <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={floaterOpacity}
-              onChange={(e) => setFloaterOpacity(parseFloat(e.target.value))}
+              type="range" min="0" max="1" step="0.01" value={floaterOpacity}
+              onChange={(e) => { const v = parseFloat(e.target.value); setFloaterOpacity(v); emit({ floaterOpacity: v }); }}
               className="w-full"
             />
             <label>Темнота: {floaterDarkness.toFixed(2)}</label>
             <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={floaterDarkness}
-              onChange={(e) => setFloaterDarkness(parseFloat(e.target.value))}
+              type="range" min="0" max="1" step="0.01" value={floaterDarkness}
+              onChange={(e) => { const v = parseFloat(e.target.value); setFloaterDarkness(v); emit({ floaterDarkness: v }); }}
               className="w-full"
             />
           </>
