@@ -1,4 +1,3 @@
-// src/components/VisualSnowSimulator.jsx
 import React, { useEffect, useRef, useState } from "react";
 import { applyBlur } from "../effects/blurEffect";
 import { applyNoise } from "../effects/noiseEffect";
@@ -10,10 +9,10 @@ import { applyBlueField, resetBlueField } from "../effects/blueFieldEffect";
 const VisualSnowSimulator = ({ image, effectType }) => {
   const [blurLevel, setBlurLevel] = useState(1);
   const [noiseLevel, setNoiseLevel] = useState(0.1);
-  const [opacityLevel, setOpacityLevel] = useState(0.5); // ghost opacity
+  const [opacityLevel, setOpacityLevel] = useState(0.5);
   const [ghostX, setGhostX] = useState(10);
   const [ghostY, setGhostY] = useState(10);
-  const [haloIntensity, setHaloIntensity] = useState(0.3);
+  const [haloIntensity, setHaloIntensity] = useState(0.76);
   const [haloOpacity, setHaloOpacity] = useState(0.5);
   const [haloDiameter, setHaloDiameter] = useState(30);
 
@@ -25,43 +24,76 @@ const VisualSnowSimulator = ({ image, effectType }) => {
   const [floaterCount, setFloaterCount] = useState(5);
   const [floaterTail, setFloaterTail] = useState(40);
   const [floaterOpacity, setFloaterOpacity] = useState(0.5);
-  const [floaterDarkness, setFloaterDarkness] = useState(0.5); // 0=light, 1=dark
+  const [floaterDarkness, setFloaterDarkness] = useState(0.5);
 
-  const canvasRef = useRef(null);
+  const baseCanvasRef = useRef(null);     // base image + non-halo effects
+  const haloCanvasRef = useRef(null);     // overlay (only for halo)
   const imageRef = useRef(new Image());
   const rafRef = useRef(null);
 
-  // Track last canvas pixel size to know when to reset pools
-  const lastSizeRef = useRef({ w: 0, h: 0 });
+  const lastBaseSizeRef = useRef({ w: 0, h: 0 });
 
-  // Reset effect states when switching screen/effect
+  // Reset pooled effects when switching screen/effect
   useEffect(() => {
     resetBlueField();
     resetFloaters();
   }, [image, effectType]);
 
-  // Reset floaters immediately when tail length changes (prevents long connectors)
   useEffect(() => {
     if (effectType === "floaters") resetFloaters();
   }, [floaterTail, effectType]);
 
-  // Helper: make canvas pixels match CSS size * devicePixelRatio*
-  const fitCanvasToDisplay = (canvas) => {
-    const dpr = window.devicePixelRatio || 1;
+  // --- Base canvas sizing (simple, same as before) ---
+  const fitBaseCanvas = (canvas) => {
+    const rect = canvas.getBoundingClientRect();
+    const targetW = Math.max(1, Math.round(rect.width));
+    const targetH = Math.max(1, Math.round(rect.height));
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      canvas.width = targetW;
+      canvas.height = targetH;
+      return true;
+    }
+    return false;
+  };
+
+  // --- Halo overlay DPR-aware sizing (isolated to halo only) ---
+  const fitHaloCanvasDPR = (canvas) => {
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
     const rect = canvas.getBoundingClientRect();
     const targetW = Math.max(1, Math.round(rect.width * dpr));
     const targetH = Math.max(1, Math.round(rect.height * dpr));
     if (canvas.width !== targetW || canvas.height !== targetH) {
       canvas.width = targetW;
       canvas.height = targetH;
-      return true; // size changed
     }
-    return false;
+    // draw in CSS pixels on the halo layer
+    canvas.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { rect, dpr };
+  };
+
+  // Click on the halo overlay → log CSS + image-space
+  const handleHaloClick = (e) => {
+    const canvas = haloCanvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+
+    const cssX = e.clientX - rect.left;
+    const cssY = e.clientY - rect.top;
+
+    const natW = imageRef.current.naturalWidth || rect.width;
+    const natH = imageRef.current.naturalHeight || rect.height;
+
+    const imgX = cssX * (natW / rect.width);
+    const imgY = cssY * (natH / rect.height);
+
+    console.log("Halo position (image space):", { x: imgX, y: imgY });
+    console.log("Halo position (CSS space):", { x: cssX, y: cssY });
+
+    return { cssX, cssY, imgX, imgY };
   };
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
+    const baseCanvas = baseCanvasRef.current;
+    const baseCtx = baseCanvas.getContext("2d");
     const img = imageRef.current;
 
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -69,50 +101,68 @@ const VisualSnowSimulator = ({ image, effectType }) => {
     img.src = image;
 
     img.onload = () => {
-      // Set an initial CSS size (keeps consistent layout); pixels handled by fitCanvasToDisplay
-      canvas.style.width = `${img.width / 2}px`;
-      canvas.style.height = `${img.height / 2}px`;
+      // CSS size for both canvases (same rectangle)
+      const aspect = img.naturalHeight / img.naturalWidth;
+      const cssW = Math.min(img.naturalWidth, Math.floor(window.innerWidth * 0.9));
+      const cssH = Math.round(cssW * aspect);
+
+      // Set CSS size for base and (if present) halo canvases
+      baseCanvas.style.width = `${cssW}px`;
+      baseCanvas.style.height = `${cssH}px`;
+
+      if (haloCanvasRef.current) {
+        haloCanvasRef.current.style.width = `${cssW}px`;
+        haloCanvasRef.current.style.height = `${cssH}px`;
+      }
 
       const drawFrame = () => {
-        // Ensure canvas pixels match CSS*DPR; reset pools if the pixel size changed
-        const resized = fitCanvasToDisplay(canvas);
+        // --- Base canvas render (no DPR transform) ---
+        const resized = fitBaseCanvas(baseCanvas);
         if (resized) {
-          const { width: w, height: h } = canvas;
-          if (w !== lastSizeRef.current.w || h !== lastSizeRef.current.h) {
-            lastSizeRef.current = { w, h };
+          const { width: w, height: h } = baseCanvas;
+          if (w !== lastBaseSizeRef.current.w || h !== lastBaseSizeRef.current.h) {
+            lastBaseSizeRef.current = { w, h };
             resetBlueField();
             resetFloaters();
           }
         }
 
-        // Draw base image
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        // draw base image/effects in base canvas' pixel coords
+        baseCtx.clearRect(0, 0, baseCanvas.width, baseCanvas.height);
+        baseCtx.drawImage(img, 0, 0, baseCanvas.width, baseCanvas.height);
 
-        // Apply effects
-        if (effectType === "blur") applyBlur(ctx, blurLevel);
-        if (effectType === "noise") applyNoise(ctx, noiseLevel);
+        if (effectType === "blur")  applyBlur(baseCtx, blurLevel);
+        if (effectType === "noise") applyNoise(baseCtx, noiseLevel);
         if (effectType === "ghost")
-          applyGhost(ctx, img, opacityLevel, ghostX, ghostY);
-        if (effectType === "halo")
-          applyHalo(ctx, img, haloIntensity, haloOpacity, haloDiameter);
+          applyGhost(baseCtx, img, opacityLevel, ghostX, ghostY);
 
         if (effectType === "blueField") {
-          applyBlueField(ctx, {
+          applyBlueField(baseCtx, {
             count: numSquigglies,
             opacityMul: blueOpacity,
             backgroundDrawer: (ctx2) =>
-              ctx2.drawImage(img, 0, 0, canvas.width, canvas.height),
+              ctx2.drawImage(img, 0, 0, baseCanvas.width, baseCanvas.height),
           });
         }
 
         if (effectType === "floaters") {
-          applyFloaters(ctx, {
+          applyFloaters(baseCtx, {
             count: floaterCount,
             tailLength: floaterTail,
-            darkness: floaterDarkness, // 0..1 (light->dark)
+            darkness: floaterDarkness,
             opacity: floaterOpacity,
           });
+        }
+
+        // --- Halo overlay render (DPR-aware, CSS pixels) ---
+        if (effectType === "halo" && haloCanvasRef.current) {
+          const haloCanvas = haloCanvasRef.current;
+          const { rect } = fitHaloCanvasDPR(haloCanvas); // sets CSS-px transform
+          const haloCtx = haloCanvas.getContext("2d");
+          // clear overlay in CSS px
+          haloCtx.clearRect(0, 0, rect.width, rect.height);
+          // draw halos mapped from image→CSS on the overlay
+          applyHalo(haloCtx, img, haloIntensity, haloOpacity, haloDiameter);
         }
 
         rafRef.current = requestAnimationFrame(drawFrame);
@@ -153,7 +203,19 @@ const VisualSnowSimulator = ({ image, effectType }) => {
   return (
     <div className="p-4 flex flex-col items-center">
       <h1 className="text-xl font-bold mb-4">Симулятор визуального снега</h1>
-      <canvas ref={canvasRef} className="border rounded-lg" />
+
+      {/* Canvas stack: base + (conditional) halo overlay */}
+      <div className="relative inline-block">
+        <canvas ref={baseCanvasRef} className="border rounded-lg tg-canvas" />
+        {effectType === "halo" && (
+          <canvas
+            ref={haloCanvasRef}
+            className="absolute inset-0 rounded-lg"
+            style={{ pointerEvents: "auto" }}
+            onClick={handleHaloClick}
+          />
+        )}
+      </div>
 
       <div className="mt-4 flex flex-col items-center w-64">
         {effectType === "blur" && (
@@ -198,7 +260,6 @@ const VisualSnowSimulator = ({ image, effectType }) => {
               onChange={(e) => setOpacityLevel(parseFloat(e.target.value))}
               className="w-full"
             />
-
             <label>Смещение двоения по X: {ghostX}</label>
             <input
               type="range"
@@ -208,7 +269,6 @@ const VisualSnowSimulator = ({ image, effectType }) => {
               onChange={(e) => setGhostX(parseInt(e.target.value))}
               className="w-full"
             />
-
             <label>Смещение двоения по Y: {ghostY}</label>
             <input
               type="range"
@@ -223,7 +283,7 @@ const VisualSnowSimulator = ({ image, effectType }) => {
 
         {effectType === "halo" && (
           <>
-            <label>Интенсивность ореола: {haloIntensity}</label>
+            <label>Интенсивность ореола: {haloIntensity.toFixed(2)}</label>
             <input
               type="range"
               min="0"
@@ -233,7 +293,6 @@ const VisualSnowSimulator = ({ image, effectType }) => {
               onChange={(e) => setHaloIntensity(parseFloat(e.target.value))}
               className="w-full"
             />
-
             <label>Прозрачность ореола: {haloOpacity}</label>
             <input
               type="range"
@@ -244,7 +303,6 @@ const VisualSnowSimulator = ({ image, effectType }) => {
               onChange={(e) => setHaloOpacity(parseFloat(e.target.value))}
               className="w-full"
             />
-
             <label>Диаметр ореола: {haloDiameter}</label>
             <input
               type="range"
@@ -269,7 +327,6 @@ const VisualSnowSimulator = ({ image, effectType }) => {
               onChange={(e) => setNumSquigglies(parseInt(e.target.value))}
               className="w-full"
             />
-
             <label>Прозрачность: {blueOpacity.toFixed(2)}</label>
             <input
               type="range"
@@ -294,7 +351,6 @@ const VisualSnowSimulator = ({ image, effectType }) => {
               onChange={(e) => setFloaterCount(parseInt(e.target.value))}
               className="w-full"
             />
-
             <label>Длина хвоста: {floaterTail}</label>
             <input
               type="range"
@@ -304,7 +360,6 @@ const VisualSnowSimulator = ({ image, effectType }) => {
               onChange={(e) => setFloaterTail(parseInt(e.target.value))}
               className="w-full"
             />
-
             <label>Прозрачность: {floaterOpacity.toFixed(2)}</label>
             <input
               type="range"
@@ -315,7 +370,6 @@ const VisualSnowSimulator = ({ image, effectType }) => {
               onChange={(e) => setFloaterOpacity(parseFloat(e.target.value))}
               className="w-full"
             />
-
             <label>Темнота: {floaterDarkness.toFixed(2)}</label>
             <input
               type="range"

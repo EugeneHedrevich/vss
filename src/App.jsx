@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from "react";
 import VisualSnowSimulator from "../src/components/VisualSnowSimulator.jsx";
 
-// If your images are in /public, keep these paths.
-// If they’re in /src/assets, import them instead.
 function App() {
   const [user, setUser] = useState(null);
   const [currentScreen, setCurrentScreen] = useState(0);
@@ -104,17 +102,26 @@ function App() {
           />
 
           {currentScreen < screens.length - 1 ? (
-            <button onClick={onNextScreenButton} className="tg-btn mt-4 px-4 py-2 shadow-md">
+            <button
+              onClick={onNextScreenButton}
+              className="tg-btn mt-4 px-4 py-2 shadow-md"
+            >
               Следующий экран
             </button>
           ) : (
-            <button onClick={handleFinishTesting} className="tg-btn mt-4 px-4 py-2 shadow-md">
+            <button
+              onClick={handleFinishTesting}
+              className="tg-btn mt-4 px-4 py-2 shadow-md"
+            >
               Завершить тест
             </button>
           )}
         </>
       ) : (
-        <form onSubmit={handleLogin} className="tg-card p-6 flex flex-col gap-4 w-80">
+        <form
+          onSubmit={handleLogin}
+          className="tg-card p-6 flex flex-col gap-4 w-80"
+        >
           <h2 className="text-2xl font-bold mb-4 text-center">
             Тест на визуальный снег (VSS)
           </h2>

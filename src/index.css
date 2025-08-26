@@ -6,15 +6,14 @@
    Telegram theme variables
    ======================= */
 :root {
-  /* fallbacks when not inside Telegram */
   color-scheme: light dark;
-  --tg-theme-bg-color: #f3f4f6;            /* gray-100 */
-  --tg-theme-text-color: #111827;          /* gray-900 */
-  --tg-theme-hint-color: #9ca3af;          /* gray-400 */
-  --tg-theme-link-color: #2563eb;          /* blue-600 */
-  --tg-theme-button-color: #2563eb;        /* blue-600 */
+  --tg-theme-bg-color: #f3f4f6;
+  --tg-theme-text-color: #111827;
+  --tg-theme-hint-color: #9ca3af;
+  --tg-theme-link-color: #2563eb;
+  --tg-theme-button-color: #2563eb;
   --tg-theme-button-text-color: #ffffff;
-  --tg-theme-secondary-bg-color: #ffffff;  /* cards/inputs background */
+  --tg-theme-secondary-bg-color: #ffffff;
 
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
@@ -25,18 +24,16 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Optional default dark fallbacks when Telegram not present */
 .dark {
   --tg-theme-bg-color: #0f1115;
   --tg-theme-text-color: #e5e7eb;
   --tg-theme-hint-color: #9ca3af;
-  --tg-theme-link-color: #60a5fa;          /* blue-400 */
-  --tg-theme-button-color: #3b82f6;        /* blue-500 */
+  --tg-theme-link-color: #60a5fa;
+  --tg-theme-button-color: #3b82f6;
   --tg-theme-button-text-color: #0b0f14;
   --tg-theme-secondary-bg-color: #1b1f26;
 }
 
-/* Base document colors bound to theme */
 html, body {
   background: var(--tg-theme-bg-color);
   color: var(--tg-theme-text-color);
@@ -49,7 +46,6 @@ a {
 }
 a:hover { text-decoration: underline; }
 
-/* Layout */
 body {
   margin: 0;
   padding: 0;
@@ -58,18 +54,14 @@ body {
   height: 100vh;
 }
 
-/* Headings */
 h1 { font-size: 3.2em; line-height: 1.1; }
 
-/* Container (optional) */
 #app {
   max-width: 1280px;
   margin: 0 auto;
   padding: 2rem;
   text-align: center;
 }
-
-/* ===== Reusable themed components ===== */
 
 /* Inputs / text fields */
 .tg-input {
@@ -80,10 +72,7 @@ h1 { font-size: 3.2em; line-height: 1.1; }
   padding: 0.5rem 0.75rem;
   outline: none;
 }
-.tg-input::placeholder {
-  color: var(--tg-theme-hint-color);
-  opacity: 1;
-}
+.tg-input::placeholder { color: var(--tg-theme-hint-color); opacity: 1; }
 .tg-input:focus {
   border-color: var(--tg-theme-link-color);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--tg-theme-link-color) 25%, transparent);
@@ -112,25 +101,21 @@ h1 { font-size: 3.2em; line-height: 1.1; }
   box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 }
 
-/* Range sliders pick up the accent color from Telegram */
-input[type="range"] {
-  accent-color: var(--tg-theme-button-color);
-}
+/* Range sliders */
+input[type="range"] { accent-color: var(--tg-theme-button-color); }
 
-/* Canvas borders that adapt to theme */
+/* Canvas border */
 .tg-canvas {
   border: 1px solid color-mix(in srgb, var(--tg-theme-hint-color) 55%, transparent);
   border-radius: 0.5rem;
 }
 
-/* Misc legacy styles (kept, but themed) */
 .logo { height: 6em; padding: 1.5em; will-change: filter; transition: filter 300ms; }
 .logo:hover { filter: drop-shadow(0 0 2em color-mix(in srgb, var(--tg-theme-link-color) 60%, transparent)); }
 
 .card { padding: 2em; background: var(--tg-theme-secondary-bg-color); border-radius: 0.5rem; }
 .read-the-docs { color: var(--tg-theme-hint-color); }
 
-/* Prefer theme variables over media query, but keep as a fallback */
 @media (prefers-color-scheme: light) {
   :root:not(.dark) {
     --tg-theme-bg-color: #ffffff;

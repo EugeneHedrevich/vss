@@ -1,5 +1,5 @@
 // blueField.js
-const SPEED = 2;                 // constant physiological speed
+const SPEED = 1;                 // constant physiological speed
 const JITTER = 10;               // deg per step
 const MIN_LEN = 2, MAX_LEN = 6;  // dash length in px
 const MIN_LIFE = 10, MAX_LIFE = 20; // frames

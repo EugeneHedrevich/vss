@@ -1,23 +1,43 @@
+// Draw halos using image-space positions mapped to the current CSS draw size.
 export const applyHalo = (ctx, img, haloIntensity, haloOpacity, haloDiameter) => {
-    const positions = [
-        { x: 147, y: 75.5 },
-        { x: 97, y: 132.5 },
-        { x: 76, y: 154.5 }
-    ];
-    ctx.globalCompositeOperation = "lighter"; // Makes bright areas glow
+  // Your measured positions (image space). These are consistent on PC & mobile.
+  const positions = [
+    { x: 297, y: 156.6875 },
+    { x: 195, y: 262.6875 },
+    { x: 153, y: 312.6875 },
+  ];
 
-    positions.forEach(({ x, y }) => {
-        const adjustedOpacity = haloOpacity * haloIntensity; // Adjust the opacity based on intensity
-        const gradient = ctx.createRadialGradient(x, y, 0, x, y, haloDiameter);
+  // Current CSS size (ctx has been scaled so 1 unit = 1 CSS px).
+  const rect = ctx.canvas.getBoundingClientRect();
+  const cssW = rect.width;
+  const cssH = rect.height;
 
-        gradient.addColorStop(0, `rgba(255, 255, 255, ${adjustedOpacity})`); // Center of the halo
-        gradient.addColorStop(1, `rgba(255, 255, 255, 0)`); // Fading outwards
+  const natW = img.naturalWidth || cssW;
+  const natH = img.naturalHeight || cssH;
 
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.arc(x, y, haloDiameter, 0, 2 * Math.PI);
-        ctx.fill();
-    });
+  // Map image-space -> CSS-space
+  const sx = cssW / natW;
+  const sy = cssH / natH;
 
-    ctx.globalCompositeOperation = "source-over";
+  const alpha = Math.max(0, Math.min(1, (haloOpacity || 0) * (haloIntensity || 0)));
+  const r = Math.max(1, haloDiameter | 0); // radius in CSS pixels
+
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+
+  positions.forEach(({ x, y }) => {
+    const px = x * sx;
+    const py = y * sy;
+
+    const g = ctx.createRadialGradient(px, py, 0, px, py, r);
+    g.addColorStop(0, `rgba(255,255,255,${alpha})`);
+    g.addColorStop(1, `rgba(255,255,255,0)`);
+
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(px, py, r, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  ctx.restore();
 };
