@@ -1,69 +1,75 @@
-let squiggles = null;
+// blueField.js
+const SPEED = 2;                 // constant physiological speed
+const JITTER = 10;               // deg per step
+const MIN_LEN = 2, MAX_LEN = 6;  // dash length in px
+const MIN_LIFE = 10, MAX_LIFE = 20; // frames
 
-export const applyBlueField = (ctx, numSquigglies, speed, trailLength) => {
-    const canvas = ctx.canvas;
+let particles = null;
 
-    if (!squiggles || squiggles.length !== numSquigglies) {
-        squiggles = Array.from({ length: numSquigglies }, () => createSquiggle(canvas));
+export function applyBlueField(ctx, { count, opacityMul, backgroundDrawer }) {
+  const { canvas } = ctx;
+
+  // 1) clear + draw background each frame
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (backgroundDrawer) backgroundDrawer(ctx);
+
+  // 2) pool sizing
+  if (!particles) {
+    particles = Array.from({ length: count }, () => make(canvas));
+  } else if (particles.length !== count) {
+    particles.length = Math.min(particles.length, count);
+    while (particles.length < count) particles.push(make(canvas));
+  }
+
+  // 3) update + draw short dashes
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i];
+
+    // heading jitter
+    p.angle += (Math.random() - 0.5) * JITTER;
+
+    // prev -> next
+    const rad = (p.angle * Math.PI) / 180;
+    const dx = Math.cos(rad) * SPEED;
+    const dy = Math.sin(rad) * SPEED;
+    const x2 = p.x + dx, y2 = p.y + dy;
+
+    // alpha fades in/out over life; multiply by user opacity
+    const lifeT = p.life / p.lifeMax; // 1 -> 0
+    const alpha = (0.25 + 0.75 * lifeT) * opacityMul; // keep some floor
+
+    // single dash only; never connect gaps
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    // dash end in heading direction with small length
+    const lx = Math.cos(rad) * p.len;
+    const ly = Math.sin(rad) * p.len;
+    ctx.lineTo(p.x + lx, p.y + ly);
+    ctx.strokeStyle = `rgba(255,255,255,${alpha})`; // white “sparkle”
+    ctx.lineWidth = 1.2;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // commit new pos
+    p.x = x2; p.y = y2;
+    p.life--;
+
+    // respawn out-of-bounds or life ended
+    if (p.life <= 0 || x2 < 0 || y2 < 0 || x2 > canvas.width || y2 > canvas.height) {
+      particles[i] = make(canvas);
     }
+  }
+}
 
-    const maxAngle = 10;
-    const opacity = 0.7;
+export function resetBlueField() { particles = null; }
 
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    drawSquiggles(ctx, squiggles, opacity);
-    updateSquiggles(squiggles, canvas, maxAngle, trailLength);
-};
-
-export const resetBlueField = () => {
-    squiggles = null;
-};
-
-const createSquiggle = (canvas) => ({
+function make(canvas) {
+  return {
     x: Math.random() * canvas.width,
     y: Math.random() * canvas.height,
     angle: Math.random() * 360,
-    trail: [],
-});
-
-const updateSquiggles = (squiggles, canvas, maxAngle, trailLength) => {
-    squiggles.forEach((squiggle) => {
-        squiggle.angle += (Math.random() - 0.5) * maxAngle;
-        squiggle.x += Math.cos((squiggle.angle * Math.PI) / 180) * 2;
-        squiggle.y += Math.sin((squiggle.angle * Math.PI) / 180) * 2;
-
-        squiggle.trail.push({ x: squiggle.x, y: squiggle.y });
-
-        if (squiggle.trail.length > trailLength) {
-            squiggle.trail.shift();
-        }
-
-        if (
-            squiggle.x < 0 ||
-            squiggle.x > canvas.width ||
-            squiggle.y < 0 ||
-            squiggle.y > canvas.height
-        ) {
-            Object.assign(squiggle, createSquiggle(canvas));
-        }
-    });
-};
-
-const drawSquiggles = (ctx, squiggles, opacity) => {
-    ctx.strokeStyle = `rgba(0, 136, 255, ${opacity})`;
-    ctx.lineWidth = 1.5;
-
-    squiggles.forEach((squiggle) => {
-        ctx.beginPath();
-        squiggle.trail.forEach((point, index) => {
-            if (index === 0) {
-                ctx.moveTo(point.x, point.y);
-            } else {
-                ctx.lineTo(point.x, point.y);
-            }
-        });
-        ctx.stroke();
-    });
-};
+    len: MIN_LEN + Math.random() * (MAX_LEN - MIN_LEN),
+    lifeMax: Math.floor(MIN_LIFE + Math.random() * (MAX_LIFE - MIN_LIFE)),
+    life:  Math.floor(MIN_LIFE + Math.random() * (MAX_LIFE - MIN_LIFE)),
+  };
+}

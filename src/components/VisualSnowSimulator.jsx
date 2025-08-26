@@ -1,216 +1,336 @@
+// src/components/VisualSnowSimulator.jsx
 import React, { useEffect, useRef, useState } from "react";
 import { applyBlur } from "../effects/blurEffect";
 import { applyNoise } from "../effects/noiseEffect";
 import { applyGhost } from "../effects/ghostEffect";
 import { applyHalo } from "../effects/haloEffect";
-import { applyBlueField } from "../effects/blueFieldEffect";
+import { applyFloaters, resetFloaters } from "../effects/floaterEffect";
+import { applyBlueField, resetBlueField } from "../effects/blueFieldEffect";
 
 const VisualSnowSimulator = ({ image, effectType }) => {
-    const [blurLevel, setBlurLevel] = useState(1);
-    const [noiseLevel, setNoiseLevel] = useState(0.1);
-    const [opacityLevel, setOpacityLevel] = useState(0.5);
-    const [ghostX, setGhostX] = useState(10);
-    const [ghostY, setGhostY] = useState(10);
-    const [haloIntensity, setHaloIntensity] = useState(0.3);
-    const [haloOpacity, setHaloOpacity] = useState(0.5);
-    const [haloDiameter, setHaloDiameter] = useState(30);
+  const [blurLevel, setBlurLevel] = useState(1);
+  const [noiseLevel, setNoiseLevel] = useState(0.1);
+  const [opacityLevel, setOpacityLevel] = useState(0.5); // ghost opacity
+  const [ghostX, setGhostX] = useState(10);
+  const [ghostY, setGhostY] = useState(10);
+  const [haloIntensity, setHaloIntensity] = useState(0.3);
+  const [haloOpacity, setHaloOpacity] = useState(0.5);
+  const [haloDiameter, setHaloDiameter] = useState(30);
 
-    const [numSquigglies, setNumSquigglies] = useState(30);
-    const [updateSpeed, setUpdateSpeed] = useState(60);
-    const [trailLength, setTrailLength] = useState(10);
+  // Blue-field controls
+  const [numSquigglies, setNumSquigglies] = useState(60);
+  const [blueOpacity, setBlueOpacity] = useState(0.7);
 
-    const canvasRef = useRef(null);
-    const imageRef = useRef(new Image());
+  // Floaters controls
+  const [floaterCount, setFloaterCount] = useState(5);
+  const [floaterTail, setFloaterTail] = useState(40);
+  const [floaterOpacity, setFloaterOpacity] = useState(0.5);
+  const [floaterDarkness, setFloaterDarkness] = useState(0.5); // 0=light, 1=dark
 
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext("2d");
-        const img = imageRef.current;
+  const canvasRef = useRef(null);
+  const imageRef = useRef(new Image());
+  const rafRef = useRef(null);
 
-        img.src = image;
-        img.crossOrigin = "anonymous";
+  // Track last canvas pixel size to know when to reset pools
+  const lastSizeRef = useRef({ w: 0, h: 0 });
 
-        img.onload = () => {
-            canvas.width = img.width / 2;
-            canvas.height = img.height / 2;
-            animateEffect(ctx, img);
-        };
+  // Reset effect states when switching screen/effect
+  useEffect(() => {
+    resetBlueField();
+    resetFloaters();
+  }, [image, effectType]);
 
-        return () => {
-            img.onload = null;
-        };
-    }, [image, blurLevel, noiseLevel, opacityLevel, ghostX, ghostY, haloIntensity, haloOpacity, haloDiameter, numSquigglies, updateSpeed, trailLength]);
+  // Reset floaters immediately when tail length changes (prevents long connectors)
+  useEffect(() => {
+    if (effectType === "floaters") resetFloaters();
+  }, [floaterTail, effectType]);
 
-    const animateEffect = (ctx, img) => {
-        const canvas = ctx.canvas;
+  // Helper: make canvas pixels match CSS size * devicePixelRatio*
+  const fitCanvasToDisplay = (canvas) => {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const targetW = Math.max(1, Math.round(rect.width * dpr));
+    const targetH = Math.max(1, Math.round(rect.height * dpr));
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      canvas.width = targetW;
+      canvas.height = targetH;
+      return true; // size changed
+    }
+    return false;
+  };
 
-        const drawFrame = () => {
-            // Clear the canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    const img = imageRef.current;
 
-            // Draw the image on the canvas
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
 
-            // Apply effects in the correct order
-            if (effectType === "blur") applyBlur(ctx, blurLevel);
-            if (effectType === "noise") applyNoise(ctx, noiseLevel);
-            if (effectType === "ghost") applyGhost(ctx, img, opacityLevel, ghostX, ghostY);
-            if (effectType === "halo") applyHalo(ctx, img, haloIntensity, haloOpacity, haloDiameter);
-            if (effectType === "blueField") applyBlueField(ctx, numSquigglies, updateSpeed, trailLength);
+    img.src = image;
 
-            // Request the next frame
-            requestAnimationFrame(drawFrame);
-        };
+    img.onload = () => {
+      // Set an initial CSS size (keeps consistent layout); pixels handled by fitCanvasToDisplay
+      canvas.style.width = `${img.width / 2}px`;
+      canvas.style.height = `${img.height / 2}px`;
 
-        drawFrame();
+      const drawFrame = () => {
+        // Ensure canvas pixels match CSS*DPR; reset pools if the pixel size changed
+        const resized = fitCanvasToDisplay(canvas);
+        if (resized) {
+          const { width: w, height: h } = canvas;
+          if (w !== lastSizeRef.current.w || h !== lastSizeRef.current.h) {
+            lastSizeRef.current = { w, h };
+            resetBlueField();
+            resetFloaters();
+          }
+        }
+
+        // Draw base image
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        // Apply effects
+        if (effectType === "blur") applyBlur(ctx, blurLevel);
+        if (effectType === "noise") applyNoise(ctx, noiseLevel);
+        if (effectType === "ghost")
+          applyGhost(ctx, img, opacityLevel, ghostX, ghostY);
+        if (effectType === "halo")
+          applyHalo(ctx, img, haloIntensity, haloOpacity, haloDiameter);
+
+        if (effectType === "blueField") {
+          applyBlueField(ctx, {
+            count: numSquigglies,
+            opacityMul: blueOpacity,
+            backgroundDrawer: (ctx2) =>
+              ctx2.drawImage(img, 0, 0, canvas.width, canvas.height),
+          });
+        }
+
+        if (effectType === "floaters") {
+          applyFloaters(ctx, {
+            count: floaterCount,
+            tailLength: floaterTail,
+            darkness: floaterDarkness, // 0..1 (light->dark)
+            opacity: floaterOpacity,
+          });
+        }
+
+        rafRef.current = requestAnimationFrame(drawFrame);
+      };
+
+      drawFrame();
     };
 
-    return (
-        <div className="p-4 flex flex-col items-center">
-            <h1 className="text-xl font-bold mb-4">Visual Snow Simulator</h1>
-            <canvas ref={canvasRef} className="border rounded-lg" />
+    return () => {
+      img.onload = null;
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [
+    image,
+    effectType,
+    // blur
+    blurLevel,
+    // noise
+    noiseLevel,
+    // ghost
+    opacityLevel,
+    ghostX,
+    ghostY,
+    // halo
+    haloIntensity,
+    haloOpacity,
+    haloDiameter,
+    // blue-field
+    numSquigglies,
+    blueOpacity,
+    // floaters
+    floaterCount,
+    floaterTail,
+    floaterOpacity,
+    floaterDarkness,
+  ]);
 
-            <div className="mt-4 flex flex-col items-center w-64">
-                {effectType === "blur" && (
-                    <>
-                        <label className="mb-2">Blur Level: {blurLevel}</label>
-                        <input
-                            type="range"
-                            min="0"
-                            max="10"
-                            step="0.1"
-                            value={blurLevel}
-                            onChange={(e) => setBlurLevel(parseFloat(e.target.value))}
-                            className="w-full"
-                        />
-                    </>
-                )}
+  return (
+    <div className="p-4 flex flex-col items-center">
+      <h1 className="text-xl font-bold mb-4">Симулятор визуального снега</h1>
+      <canvas ref={canvasRef} className="border rounded-lg" />
 
-                {effectType === "noise" && (
-                    <>
-                        <label className="mt-4 mb-2">Noise Level: {noiseLevel}</label>
-                        <input
-                            type="range"
-                            min="0"
-                            max="1"
-                            step="0.05"
-                            value={noiseLevel}
-                            onChange={(e) => setNoiseLevel(parseFloat(e.target.value))}
-                            className="w-full"
-                        />
-                    </>
-                )}
+      <div className="mt-4 flex flex-col items-center w-64">
+        {effectType === "blur" && (
+          <>
+            <label>Уровень размытия: {blurLevel}</label>
+            <input
+              type="range"
+              min="0"
+              max="10"
+              step="0.1"
+              value={blurLevel}
+              onChange={(e) => setBlurLevel(parseFloat(e.target.value))}
+              className="w-full"
+            />
+          </>
+        )}
 
-                {effectType === "ghost" && (
-                    <>
-                        <label className="mt-4 mb-2">Ghost Opacity Level: {opacityLevel}</label>
-                        <input
-                            type="range"
-                            min="0"
-                            max="1"
-                            step="0.05"
-                            value={opacityLevel}
-                            onChange={(e) => setOpacityLevel(parseFloat(e.target.value))}
-                            className="w-full"
-                        />
+        {effectType === "noise" && (
+          <>
+            <label>Уровень шума: {noiseLevel}</label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={noiseLevel}
+              onChange={(e) => setNoiseLevel(parseFloat(e.target.value))}
+              className="w-full"
+            />
+          </>
+        )}
 
-                        <label className="mt-4 mb-2">Ghost X Position: {ghostX}</label>
-                        <input
-                            type="range"
-                            min="-50"
-                            max="50"
-                            step="1"
-                            value={ghostX}
-                            onChange={(e) => setGhostX(parseInt(e.target.value))}
-                            className="w-full"
-                        />
+        {effectType === "ghost" && (
+          <>
+            <label>Прозрачность двоения: {opacityLevel}</label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={opacityLevel}
+              onChange={(e) => setOpacityLevel(parseFloat(e.target.value))}
+              className="w-full"
+            />
 
-                        <label className="mt-4 mb-2">Ghost Y Position: {ghostY}</label>
-                        <input
-                            type="range"
-                            min="-50"
-                            max="50"
-                            step="1"
-                            value={ghostY}
-                            onChange={(e) => setGhostY(parseInt(e.target.value))}
-                            className="w-full"
-                        />
-                    </>
-                )}
+            <label>Смещение двоения по X: {ghostX}</label>
+            <input
+              type="range"
+              min="-50"
+              max="50"
+              value={ghostX}
+              onChange={(e) => setGhostX(parseInt(e.target.value))}
+              className="w-full"
+            />
 
-                {effectType === "halo" && (
-                    <>
-                        <label className="mt-4 mb-2">Halo Intensity: {haloIntensity}</label>
-                        <input
-                            type="range"
-                            min="0"
-                            max="1"
-                            step="0.05"
-                            value={haloIntensity}
-                            onChange={(e) => setHaloIntensity(parseFloat(e.target.value))}
-                            className="w-full"
-                        />
+            <label>Смещение двоения по Y: {ghostY}</label>
+            <input
+              type="range"
+              min="-50"
+              max="50"
+              value={ghostY}
+              onChange={(e) => setGhostY(parseInt(e.target.value))}
+              className="w-full"
+            />
+          </>
+        )}
 
-                        <label className="mt-4 mb-2">Halo Opacity: {haloOpacity}</label>
-                        <input
-                            type="range"
-                            min="0"
-                            max="1"
-                            step="0.05"
-                            value={haloOpacity}
-                            onChange={(e) => setHaloOpacity(parseFloat(e.target.value))}
-                            className="w-full"
-                        />
+        {effectType === "halo" && (
+          <>
+            <label>Интенсивность ореола: {haloIntensity}</label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={haloIntensity}
+              onChange={(e) => setHaloIntensity(parseFloat(e.target.value))}
+              className="w-full"
+            />
 
-                        <label className="mt-4 mb-2">Halo Diameter: {haloDiameter}</label>
-                        <input
-                            type="range"
-                            min="10"
-                            max="100"
-                            step="5"
-                            value={haloDiameter}
-                            onChange={(e) => setHaloDiameter(parseInt(e.target.value))}
-                            className="w-full"
-                        />
-                    </>
-                )}
+            <label>Прозрачность ореола: {haloOpacity}</label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={haloOpacity}
+              onChange={(e) => setHaloOpacity(parseFloat(e.target.value))}
+              className="w-full"
+            />
 
-                {effectType === "blueField" && (
-                    <>
-                        <label>Number of Squigglies: {numSquigglies}</label>
-                        <input
-                            type="range"
-                            min="5"
-                            max="100"
-                            value={numSquigglies}
-                            onChange={(e) => setNumSquigglies(parseInt(e.target.value))}
-                            className="w-full"
-                        />
+            <label>Диаметр ореола: {haloDiameter}</label>
+            <input
+              type="range"
+              min="1"
+              max="100"
+              step="1"
+              value={haloDiameter}
+              onChange={(e) => setHaloDiameter(parseInt(e.target.value))}
+              className="w-full"
+            />
+          </>
+        )}
 
-                        <label>Update Speed: {updateSpeed}</label>
-                        <input
-                            type="range"
-                            min="10"
-                            max="100"
-                            value={updateSpeed}
-                            onChange={(e) => setUpdateSpeed(parseInt(e.target.value))}
-                            className="w-full"
-                        />
+        {effectType === "blueField" && (
+          <>
+            <label>Количество точек: {numSquigglies}</label>
+            <input
+              type="range"
+              min="5"
+              max="120"
+              value={numSquigglies}
+              onChange={(e) => setNumSquigglies(parseInt(e.target.value))}
+              className="w-full"
+            />
 
-                        <label>Trail Length: {trailLength}</label>
-                        <input
-                            type="range"
-                            min="5"
-                            max="30"
-                            value={trailLength}
-                            onChange={(e) => setTrailLength(parseInt(e.target.value))}
-                            className="w-full"
-                        />
-                    </>
-                )}
-            </div>
-        </div>
-    );
+            <label>Прозрачность: {blueOpacity.toFixed(2)}</label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={blueOpacity}
+              onChange={(e) => setBlueOpacity(parseFloat(e.target.value))}
+              className="w-full"
+            />
+          </>
+        )}
+
+        {effectType === "floaters" && (
+          <>
+            <label>Количество «мутных тел»: {floaterCount}</label>
+            <input
+              type="range"
+              min="1"
+              max="15"
+              value={floaterCount}
+              onChange={(e) => setFloaterCount(parseInt(e.target.value))}
+              className="w-full"
+            />
+
+            <label>Длина хвоста: {floaterTail}</label>
+            <input
+              type="range"
+              min="1"
+              max="100"
+              value={floaterTail}
+              onChange={(e) => setFloaterTail(parseInt(e.target.value))}
+              className="w-full"
+            />
+
+            <label>Прозрачность: {floaterOpacity.toFixed(2)}</label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={floaterOpacity}
+              onChange={(e) => setFloaterOpacity(parseFloat(e.target.value))}
+              className="w-full"
+            />
+
+            <label>Темнота: {floaterDarkness.toFixed(2)}</label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={floaterDarkness}
+              onChange={(e) => setFloaterDarkness(parseFloat(e.target.value))}
+              className="w-full"
+            />
+          </>
+        )}
+      </div>
+    </div>
+  );
 };
 
 export default VisualSnowSimulator;
