@@ -14,7 +14,7 @@ function App() {
   const [effectsData, setEffectsData] = useState({});
 
   const sheetsUrl =
-    "https://script.google.com/macros/s/AKfycby2Q_ip92EafnDS3zhiiprMU_o1RBGVbtI109Acc28lTpVEeCFK1jP9vxexqGChYAs/exec";
+    "https://script.google.com/macros/s/AKfycbxQDh8QTu4kHTWLFwgyjrrvu3O0fSHULo5ppHhjcFj5qqkDg6ECSRiG6Taj-uN_aWow/exec";
 
   const screens = [
     { image: "/room_dark.png", effect: "blur" },
@@ -75,7 +75,10 @@ function App() {
     }));
   };
 
+  const [busy, setBusy] = useState(false);
+
   const handleFinishTesting = async () => {
+    setBusy(true);
     const payload = {
       first_name: user.first_name,
       last_name: user.last_name,
@@ -101,9 +104,11 @@ function App() {
     } catch (err) {
       alert("Ошибка отправки: " + err.message);
     } finally {
+      setBusy(false);
       setUser(null);
       setCurrentScreen(0);
       setEffectsData({});
+      setLoginForm({ first_name: "", last_name: "", telegram: "" }); // clean data
     }
   };
 
@@ -121,10 +126,17 @@ function App() {
             onEffectSnapshot={handleEffectSnapshot}
           />
 
+          {busy && (
+            <div className="mt-4 text-center text-blue-600 font-semibold">
+              Отправка результатов...
+            </div>
+          )}
+
           {currentScreen < screens.length - 1 ? (
             <button
               onClick={onNextScreenButton}
               className="tg-btn mt-4 px-4 py-2 shadow-md"
+              disabled={busy}
             >
               Следующий экран
             </button>
@@ -132,6 +144,7 @@ function App() {
             <button
               onClick={handleFinishTesting}
               className="tg-btn mt-4 px-4 py-2 shadow-md"
+              disabled={busy}
             >
               Завершить тест
             </button>
