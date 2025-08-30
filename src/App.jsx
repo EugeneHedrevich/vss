@@ -17,12 +17,12 @@ function App() {
     "https://script.google.com/macros/s/AKfycbxQDh8QTu4kHTWLFwgyjrrvu3O0fSHULo5ppHhjcFj5qqkDg6ECSRiG6Taj-uN_aWow/exec";
 
   const screens = [
-    { image: "/room_dark.png", effect: "blur" },
-    { image: "/room_light.png", effect: "noise" },
-    { image: "/bar.png", effect: "ghost" },
+    { image: "/room_dark_ai.png", effect: "blur" },
+    { image: "/room_light_ai.png", effect: "noise" },
+    { image: "/bar_ai.png", effect: "ghost" },
     { image: "/lamps.png", effect: "halo" },
-    { image: "/sky.png", effect: "blueField" },
-    { image: "/sky.png", effect: "floaters" },
+    { image: "/sky_ai.png", effect: "blueField" },
+    { image: "/sky_son_ai.png", effect: "floaters" },
   ];
 
   // Telegram theme hookup
@@ -50,6 +50,9 @@ function App() {
 
   const onNextScreenButton = () =>
     setCurrentScreen((prev) => (prev + 1) % screens.length);
+
+  const onPrevScreenButton = () =>
+    setCurrentScreen((prev) => (prev > 0 ? prev - 1 : prev));
 
   const handleInputChange = (e) =>
     setLoginForm({ ...loginForm, [e.target.name]: e.target.value });
@@ -126,29 +129,58 @@ function App() {
             onEffectSnapshot={handleEffectSnapshot}
           />
 
+          {/* Page indicator */}
+          <div className="mt-2 text-center text-sm text-gray-500">
+            {currentScreen + 1} / {screens.length}
+          </div>
+
           {busy && (
             <div className="mt-4 text-center text-blue-600 font-semibold">
               Отправка результатов...
             </div>
           )}
 
-          {currentScreen < screens.length - 1 ? (
-            <button
-              onClick={onNextScreenButton}
-              className="tg-btn mt-4 px-4 py-2 shadow-md"
-              disabled={busy}
-            >
-              Следующий экран
-            </button>
-          ) : (
-            <button
-              onClick={handleFinishTesting}
-              className="tg-btn mt-4 px-4 py-2 shadow-md"
-              disabled={busy}
-            >
-              Завершить тест
-            </button>
-          )}
+          <div className="flex gap-4 mt-4">
+            {currentScreen > 0 ? (
+              <button
+                onClick={onPrevScreenButton}
+                className="tg-btn px-4 py-2 shadow-md"
+                disabled={busy}
+              >
+                Назад
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  // Go back to login to change initial data
+                  setUser(null);
+                  setCurrentScreen(0);
+                  setEffectsData({});
+                }}
+                className="tg-btn px-4 py-2 shadow-md"
+                disabled={busy}
+              >
+                Назад к данным
+              </button>
+            )}
+            {currentScreen < screens.length - 1 ? (
+              <button
+                onClick={onNextScreenButton}
+                className="tg-btn px-4 py-2 shadow-md"
+                disabled={busy}
+              >
+                Следующий экран
+              </button>
+            ) : (
+              <button
+                onClick={handleFinishTesting}
+                className="tg-btn px-4 py-2 shadow-md"
+                disabled={busy}
+              >
+                Завершить тест
+              </button>
+            )}
+          </div>
         </>
       ) : (
         <form
