@@ -1,6 +1,8 @@
-require("dotenv").config();
-const TelegramBot = require("node-telegram-bot-api");
-const express = require("express");
+import dotenv from "dotenv";
+import TelegramBot from "node-telegram-bot-api";
+import express from "express";
+
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,7 +12,7 @@ const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 // React App URL
-const REACT_APP_URL = "https://vercel.com/yauhen-hedrevichs-projects/visual-snow-simulator/ArzDNyZAMNXrA18WYj4Rr6RkA2A2/source?f=src%2Fimages%2Fimage.png"; // Change to your deployed React app
+const REACT_APP_URL = "https://visual-snow-simulator.vercel.app"; // <-- Use your deployed React app URL
 
 // /start command sends the Web App button
 bot.onText(/\/start/, (msg) => {

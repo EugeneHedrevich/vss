@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "deploy": "vercel",
-    "deploy-prod": "vercel --prod"
+    "deploy-prod": "vercel --prod",
+    "build-deploy": "npm run build && npm run deploy-prod"
   },
   "devDependencies": {
     "tailwindcss": "^3.4.17",
@@ -16,6 +17,9 @@
   },
   "dependencies": {
     "autoprefixer": "^10.4.20",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "node-telegram-bot-api": "^0.66.0",
     "postcss": "^8.5.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

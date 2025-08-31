@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import VisualSnowSimulator from "../src/components/VisualSnowSimulator.jsx";
 
 function App() {
@@ -28,24 +28,23 @@ function App() {
   // Telegram theme hookup
   useEffect(() => {
     const tg = window.Telegram?.WebApp;
+    console.log("Telegram WebApp object:", tg);
+window.Telegram?.WebApp
     if (!tg) return;
-    const applyTheme = () => {
-      const p = tg.themeParams || {};
-      const set = (k, v) =>
-        v && document.documentElement.style.setProperty(k, `#${v}`);
-      set("--tg-theme-bg-color", p.bg_color);
-      set("--tg-theme-text-color", p.text_color);
-      set("--tg-theme-hint-color", p.hint_color);
-      set("--tg-theme-link-color", p.link_color);
-      set("--tg-theme-button-color", p.button_color);
-      set("--tg-theme-button-text-color", p.button_text_color);
-      set("--tg-theme-secondary-bg-color", p.secondary_bg_color);
-      document.documentElement.classList.toggle("dark", tg.colorScheme === "dark");
-    };
-    applyTheme();
-    tg.onEvent("themeChanged", applyTheme);
+
     tg.expand();
-    return () => tg.offEvent?.("themeChanged", applyTheme);
+
+    if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+      console.log("Telegram user info:", tg.initDataUnsafe.user);
+      setUser({
+        first_name: tg.initDataUnsafe.user.first_name || "",
+        last_name: tg.initDataUnsafe.user.last_name || "",
+        telegram: tg.initDataUnsafe.user.username || "",
+        id: tg.initDataUnsafe.user.id || "",
+      });
+    } else {
+      console.log("No Telegram user info found.");
+    }
   }, []);
 
   const onNextScreenButton = () =>
