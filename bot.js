@@ -7,29 +7,42 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Your Telegram Bot Token
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const bot = new TelegramBot(TOKEN, { polling: true });
+if (!TOKEN) {
+    throw new Error("Missing TELEGRAM_BOT_TOKEN in env");
+}
 
-// React App URL
-const REACT_APP_URL = "https://visual-snow-simulator.vercel.app"; // <-- Use your deployed React app URL
+const bot = new TelegramBot(TOKEN, {polling: true});
 
-// /start command sends the Web App button
+// Your deployed React app URL (HTTPS!)
+const REACT_APP_URL = "https://visual-snow-simulator.vercel.app";
+
+// /start command -> WebApp button (DO NOT use plain `url:` button)
 bot.onText(/\/start/, (msg) => {
-    const options = {
+    const opts = {
         reply_markup: {
             inline_keyboard: [
-                [{
-                    text: "🚀 Open App in Telegram",
-                    web_app: { url: REACT_APP_URL }
-                }]
-            ]
-        }
+                [
+                    {
+                        text: "🚀 Open App in Telegram",
+                        web_app: {url: REACT_APP_URL},
+                    },
+                    {
+                        text: "📊 Мои прошлые результаты",
+                        web_app: { url: `${REACT_APP_URL}/previousResults` },
+                    },
+                ],
+            ],
+        },
     };
-    bot.sendMessage(msg.chat.id, "Click below to open the app inside Telegram:", options);
+    bot.sendMessage(
+        msg.chat.id,
+        "Click below to open the app inside Telegram:",
+        opts
+    );
 });
-
-// Start Express server
+// Keep the tiny Express server alive (for hosting pings)
+app.get("/", (_req, res) => res.send("Bot is running"));
 app.listen(PORT, () => {
     console.log(`Bot server running on port ${PORT}`);
 });

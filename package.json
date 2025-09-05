@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "deploy": "vercel",
     "deploy-prod": "vercel --prod",
-    "build-deploy": "npm run build && npm run deploy-prod"
+    "build-deploy": "npm run build && npm run deploy-prod",
+    "start-backend": "node bot.js"
   },
   "devDependencies": {
     "tailwindcss": "^3.4.17",
@@ -22,6 +23,7 @@
     "node-telegram-bot-api": "^0.66.0",
     "postcss": "^8.5.1",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.8.2"
   }
 }
