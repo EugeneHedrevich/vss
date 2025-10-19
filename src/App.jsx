@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import VisualSnowSimulator from "../src/components/VisualSnowSimulator.jsx";
+import { appendResult } from "../src/utils/historyStore";
 
 function App() {
     const [user, setUser] = useState(null);
@@ -9,8 +10,6 @@ function App() {
         last_name: "",
         telegram: "",
     });
-
-    // Accumulate effect values here
     const [effectsData, setEffectsData] = useState({});
 
     const sheetsUrl =
@@ -25,23 +24,15 @@ function App() {
         { image: "/sky_son_ai.png", effect: "floaters" },
     ];
 
-    // Telegram theme hookup + prefill
     useEffect(() => {
         const tg = window.Telegram?.WebApp;
-        console.log("Telegram WebApp object:", tg);
-
         if (tg?.initDataUnsafe?.user) {
             const u = tg.initDataUnsafe.user;
-            console.log("Telegram user info:", u);
-
-            // Pre-fill form fields (user still must confirm)
             setLoginForm({
                 first_name: u.first_name || "",
                 last_name: u.last_name || "",
                 telegram: u.username ? `@${u.username}` : "",
             });
-        } else {
-            console.log("No Telegram user info found.");
         }
     }, []);
 
@@ -63,7 +54,6 @@ function App() {
         });
     };
 
-    // Collect values from simulator
     const handleEffectSnapshot = ({ effectType, values }) => {
         setEffectsData((prev) => ({
             ...prev,
@@ -99,13 +89,14 @@ function App() {
             effectsByType: effectsData,
         };
 
-        // --- persist profile + last result only in CloudStorage ---
         const tg = window.Telegram?.WebApp;
 
         const saveToCloud = (key, value) =>
             new Promise((resolve) => {
                 if (!tg?.CloudStorage?.setItem) return resolve(false);
-                tg.CloudStorage.setItem(key, value, (ok, err) => resolve(!err && ok));
+                tg.CloudStorage.setItem(key, value, (ok, err) => {
+                    resolve(!err && ok);
+                });
             });
 
         try {
@@ -116,13 +107,11 @@ function App() {
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-            // Save AFTER successful submit
             try {
                 await saveToCloud("profile", JSON.stringify(user));
                 await saveToCloud("lastResult", JSON.stringify(payload));
-            } catch (_) {
-                // ignore CloudStorage errors
-            }
+                appendResult(payload, () => {});
+            } catch {}
 
             alert("Результаты отправлены. Спасибо!");
         } catch (err) {
@@ -132,7 +121,7 @@ function App() {
             setUser(null);
             setCurrentScreen(0);
             setEffectsData({});
-            setLoginForm({ first_name: "", last_name: "", telegram: "" }); // clean data
+            setLoginForm({ first_name: "", last_name: "", telegram: "" });
         }
     };
 
@@ -150,7 +139,6 @@ function App() {
                         onEffectSnapshot={handleEffectSnapshot}
                     />
 
-                    {/* Page indicator */}
                     <div className="mt-2 text-center text-sm text-gray-500">
                         {currentScreen + 1} / {screens.length}
                     </div>
